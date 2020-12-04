@@ -19,7 +19,7 @@ import datetime
 import json
 import re
 from os import path
-import pandas as pd
+#import pandas as pd
 import csv
 
 
@@ -84,17 +84,16 @@ class Report:
         while line_index < len(lines):
             line = lines[line_index].strip()
             line_index += 1
-
             if "촬영지역" in line:
                 line = lines[line_index].strip()
                 line_index += 1
                 self.location_list = line.split(",")
-            if "촬영시간" in line:
+            if "촬영시간" in line:#찰영시간이 여러개인경우 생각해봐야함
                 line = lines[line_index].strip()
                 line_index += 1
-                self.time_from = datetime.datetime.strptime(line.split("~")[0], "%H:%M")
-                self.time_to = datetime.datetime.strptime(line.split("~")[1], "%H:%M")
-
+                self.time_from = datetime.datetime.strptime(line.split(" ~ ")[0], "%H:%M")
+                self.time_to = datetime.datetime.strptime(line.split(" ~ ")[1], "%H:%M")
+                
             if self.location_list is not None and self.time_from is not None and self.time_to is not None:
                 break
 
@@ -102,7 +101,6 @@ class Report:
 
 
     def idenfied_objects_proc(self, lines, line_index):
-
         while line_index < len(lines):
             line = lines[line_index].strip()
             line_index += 1
@@ -113,8 +111,9 @@ class Report:
 
         return line_index
     def idenfied_objects_internal_proc(self, army_type, lines, line_index):
-
+        
         self.identifed_objects[army_type] = []
+        
         #print("/"+army_type)
         while line_index < len(lines):
             line = lines[line_index].strip()
@@ -131,38 +130,43 @@ class Report:
                         before_line = line
                         for right_word in right_words:
                             if right_word in line:
-                                line = line.split(right_word)[0]
+                                if "미식별" not in line:
+                                    line = line.split(right_word)[0].strip()
                         if before_line == line:
                             line = right_number_regex.split(line)[0].strip()
 
                         self.identifed_objects[army_type].append(line)
+        
         return line_index
 
 
 # In[9]:
 
 
-#text = '63식 장갑차 3대 식별'
+text = '63식 장갑차 3대 식별'
 right_number_regex = re.compile("\d대")
-#ww = right_number_regex.split(text)
+ww = right_number_regex.split(text)
 ###tsv파일 만든후 칼럼 저장
 #hs : D:/hs/ws/add/add/input
-home_dir = "D:/hs/ws/add/add/input"#한글파일 경로
+#add : "C:\\Users\\AVTDC\\example1\\add\\input"
+home_dir = "C:\\Users\\AVTDC\\example1\\add\\input"#한글파일 경로
 if path.exists("output.tsv"):#tsv파일이 존재할경우 삭제
     remove("output.tsv")
 output_file = open("output.tsv", mode="a", encoding="utf-8", newline="")
 output_writer = csv.writer(output_file, delimiter='\t')
 
-army_types = ['지상군','해군','공군']
+army_types = ['지상군','해군','공군','전략']
 colnames = ['날짜','촬영시간(시작)','촬영시간(종료)']
 colnames.extend(army_types)#칼럼
+army_types = ['지상군','해','공','전']
 output_writer.writerow(colnames)#만든 tsv파일에 칼럼 추가 \t
 output_file.close()#파일접근권한 해제
 RESOURCE_PATH_XSL_TEXT = 'xsl/plaintext_with_table.xsl'
 #표도 변환하기 위해 수정한 xsl
 begin_with_number = re.compile("^\d\)")
-left_words = ['인근에','주변']
-right_words = ['추정']
+#left_words = ['추정','에','지역에']
+left_words = [':']
+right_words = ['식별']
 
 
 # In[11]:
@@ -212,13 +216,12 @@ for file in onlyfiles:
         line_index += 1
         if line == '':#공백일경우 건너 뛰기
             continue
-
-        #print(line)
-        if "임무현황" in line:
+        
+        
+        if re.compile("\d.\s{0,1}임무\s{0,1}현황").match(line) is not None:
             line_index = report.task_status_proc(lines, line_index)
             continue
-
-        if "4. 수집 자산" in line:
+        if re.compile("\d.\s{0,1}수집\s{0,1}자산").match(line) is not None:
             line_index = report.idenfied_objects_proc(lines, line_index)
             continue
     
