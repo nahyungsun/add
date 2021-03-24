@@ -29,11 +29,3 @@ python -m pip install --no-index --find-links="./" -r .\requirements.txt
 
 test2 폴더의 hwp라이브러리를 직접 옮겨줌으로서 설치
 TEST
-
-
-무기체계 온톨로지
-=====================
-
-국방기술품질원의 무기체계분류체계를 온톨로지로 변환
-
-
