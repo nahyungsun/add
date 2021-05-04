@@ -71,19 +71,20 @@ class Report:
 
         temp = self.data
         for a in temp:
+            if a[2:] == []:
+                # 데이터가 없을 경우 넘기기
+                continue
             list=[]
             list.append(a[0])#수집자산
             list.append(self.date)
             for b in range(len(self.assets_list)):
-                if a[0] in self.assets_list[b]:
-                    #print(b)
+                if a[0] == self.assets_list[b]:
                     list.append("".join(self.assets_time[b]))
                     list.append("".join(self.location_list[b]))
-
             list.append(a[1:])
-            print(list)
+            
             output_writer.writerow(list)
-        return list
+        return
 
     def __init__(self):
         self.file_type = None
@@ -124,7 +125,7 @@ class Report:
         # 중요할경우 output에 추가예정
         date_str = re.findall(r"\d{10}", date_str)  # yymmddhhmm
         self.date = "20" + date_str[0][0:6]
-            #datetime.datetime.strptime("20" + date_str[0][0:6], "%Y%m%d")
+        #datetime.datetime.strptime("20" + date_str[0][0:6], "%Y%m%d")
 
     def task_status_proc(self, lines, line_index):
         # 임무현황 발견했을때
@@ -134,13 +135,24 @@ class Report:
             if "입수자산" in line or "입수 자산" in line:
                 # 입수자산이 여러개일 경우 시간및 촬영 지역이 다를수 있음.
                 self.assets_list = []
+                tntl=0#같은 수집자산 (수시)붙은거 나올시 예외처리
                 while 1:
                     line = lines[line_index].strip()
-                    if "촬영면적/표적" in line:
+                    if "촬영면적" in line:
                         break
-                    self.assets_list.append(line)
-                    self.assets_count += 1
                     line_index += 1
+                    if "수시" in line:
+                        tntl=1
+                    if "(" == line[0]:
+                        continue
+                    self.assets_count += 1
+                    self.assets_list.append(line.split("(")[0])
+                if tntl == 1:
+                    kk = len(self.assets_list)
+                    for ii in range(0,kk):
+                        for jj in range(ii+1,kk):
+                            if self.assets_list[ii]==self.assets_list[jj]:
+                                self.assets_list[ii]+="(수시)"
 
             if "촬영지역" in line or "촬영 지역" in line:
                 self.location_list = []
@@ -148,14 +160,22 @@ class Report:
                     # 입수 자산개수만큼 촬영지역이 존재
                     line = lines[line_index].strip()
                     line_index += 1
-                    self.location_list.append(line.split(","))
+                    self.location_list.append(line)
+                    while line[-1:]==',':
+                        line = lines[line_index].strip()
+                        line_index += 1
+                        self.location_list[-1]+=line
 
             if "촬영시간" in line or "촬영 시간" in line:
                 self.assets_time = []
-                for i in range(self.assets_count):
+                #for i in range(self.assets_count):
+                while True:
                     line = lines[line_index].strip()
                     line_index += 1
-                    self.assets_time.append(line)
+                    if ":" in line:
+                        self.assets_time.append(line)
+                    if "입수시간" in line:
+                            break
                 # self.time_from = datetime.datetime.strptime(line.split(" ~ ")[0], "%H:%M")
                 # self.time_to = datetime.datetime.strptime(line.split(" ~ ")[1], "%H:%M")
 
@@ -170,7 +190,9 @@ class Report:
             line = lines[line_index].strip()
             for count in range(len(self.assets_list)):
                 check = 0
-
+                if line_index+1 >= len(lines):
+                    print("line_index >= len(lines)")
+                    break
                 if "(" in self.assets_list[count]:#수집자산별 분류
 
                     if re.compile("\D{0,2}\.{0,2}\s{0,2}"+self.assets_list[count].split("(")[0]).match(line):
@@ -180,12 +202,11 @@ class Report:
                 else:
 
                     if re.compile("\D{0,2}\.{0,2}\s{0,2}"+self.assets_list[count]).match(line):
-
+                        
                         my_assets = self.assets_list[count]
                         check = 1
 
                 if check == 1:
-
                     line_index += 1
                     line = lines[line_index].strip()
 
@@ -204,7 +225,9 @@ class Report:
         self.identifed_objects[army_type] = []
         left_words = [':']
         right_words = ['식별']
-        #print(my_assets)
+        line = lines[line_index].strip()
+        print(my_assets)
+        print(line.replace(" ", ""))
         while line_index < len(lines):
             line = lines[line_index].strip()
             line_index += 1
@@ -213,30 +236,40 @@ class Report:
 
             #print(my_assets+line)
             for i in range(4):
-                if army_types[i] in line:
+                if army_types[i] in line.replace(" ", ""):
                     j=1
 
                     list=[]
                     list.append(my_assets)
                     list.append(army_types[i])
                     while j and line_index < len(lines)-1:
-
                         line = lines[line_index].strip()
+                        
                         line_index += 1
-                        if len(self.assets_list) != 1 and len(self.assets_list) - 1 != my_assets_count:
+                        if re.compile("\D\.\s{0,2}").match(line) is not None:
+                            self.data.append(list)
+                            return line_index - 2
+                        if re.compile("\d{1,2}\.{1,2}\s{0,2}\D").match(line) is not None:
+                            # 숫자. 문자 매치 ex)5. 영상별~, 6. 등등
+                            self.data.append(list)
+                            return line_index - 2
+                        #if len(self.assets_list) != 1 and len(self.assets_list) - 1 != my_assets_count:
                             # print(line)
-                            temp = self.assets_list[my_assets_count + 1].split("(")[0]
-                            begin_with_number = re.compile(".*" + temp + ".*")
-                            if begin_with_number.match(line) is not None:
+                        #    temp = self.assets_list[my_assets_count + 1].split("(")[0]
+                        #    begin_with_number = re.compile(".*" + temp + ".*")
+                        #    if begin_with_number.match(line) is not None:
                                 #self.data.append(my_assets)
                                 #self.data.append(army_types[i])
-                                self.data.append(list)
-                                return line_index - 2
+                        #        self.data.append(list)
+                        #        print(line)
+                        #        return line_index - 2
 
                         for k in range(4):
-                            if army_types[k] in line:
+                            if army_types[k]+":" in line.replace(" ", ""):
+                                print(line.replace(" ", ""))
                                 j=0
                                 #line_index += 1
+                                
                                 break
                         if line == '':
                             continue
@@ -329,13 +362,22 @@ for file in onlyfiles:
         print(e)
     except InvalidHwp5FileError as e:
         print(e)
+    except Exception as ex:
+        print(ex)
+        continue
         # hwp.txt파일 만드는 과정
     #####################################################################
-    outputfile = open(outputfile_name, mode="r", encoding='utf-8')
+    try:
+        outputfile = open(outputfile_name, mode="r", encoding='utf-8')
+    except FileNotFoundError as e:
+        # hwp.txt 파일이 존재하지 않을경우 건너뛰기
+        print(e)
+        continue
     lines = outputfile.read().splitlines()
     outputfile.close()
     # content = [x.strip() for x in content]
     report = Report()
+    print(file)
     report.filename_proc(file)
     # 파일이름 분석
 
@@ -358,7 +400,7 @@ for file in onlyfiles:
     #output_writer.writerow(report.to_csv())
     report.to_csv()
     output_file.close()
-    print(report)
+    #print(report)
     del report
 
 # In[ ]:
